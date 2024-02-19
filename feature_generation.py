@@ -77,7 +77,7 @@ def gen_ta(bars:pd.DataFrame):
   o,h,l,c = logbars.Open,logbars.High,logbars.Low,logbars.Close
   ta = pd.DataFrame()
   
-  for w in [5,10,20,60,120,240]:
+  for w in [5,10,20]:
     # momentum
     ind = 'roc' + '_' + str(w)
     ta[ind] = roc(c,w)
@@ -124,7 +124,7 @@ def gen_dist(bars:pd.DataFrame):
   o,h,l,c = logbars.Open,logbars.High,logbars.Low,logbars.Close
   dist = pd.DataFrame()
   
-  for w in [5,10,20,60,120,240]:
+  for w in [5,10,20]:
     ind = 'std' + '_' + str(w)
     dist[ind] = c.rolling(w).std()
     
