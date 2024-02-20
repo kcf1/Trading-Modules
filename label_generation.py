@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 def label(r):
-  if max(r) < 0:
+  if max(r) <= 0:
     return -1
   else:
     return np.argmax(r)

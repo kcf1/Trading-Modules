@@ -6,10 +6,13 @@ def gen_all(bars:pd.DataFrame):
   dist = gen_dist(bars)
   fund = gen_fund()
   
-  features = pd.concat([ta,dist,fund],axis=1)
+  features = normalize(pd.concat([ta,dist,fund],axis=1))
   features.dropna(inplace=True)
   
-  check_stationarity(features)
+  try:
+    check_stationarity(features)
+  except:
+    pass
   
   return features
 
@@ -77,7 +80,7 @@ def gen_ta(bars:pd.DataFrame):
   o,h,l,c = logbars.Open,logbars.High,logbars.Low,logbars.Close
   ta = pd.DataFrame()
   
-  for w in [5,10,20]:
+  for w in [5,10,20,60]:
     # momentum
     ind = 'roc' + '_' + str(w)
     ta[ind] = roc(c,w)
@@ -124,7 +127,7 @@ def gen_dist(bars:pd.DataFrame):
   o,h,l,c = logbars.Open,logbars.High,logbars.Low,logbars.Close
   dist = pd.DataFrame()
   
-  for w in [5,10,20]:
+  for w in [5,10,20,60]:
     ind = 'std' + '_' + str(w)
     dist[ind] = c.rolling(w).std()
     

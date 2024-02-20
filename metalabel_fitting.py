@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 def split(label:pd.Series,features:pd.DataFrame,frac_train:float=0.8):
   df = pd.concat([label,features],axis=1).dropna()
@@ -45,11 +46,21 @@ from sklearn.inspection import permutation_importance
 def select_features(y_val:pd.Series,x_val:pd.DataFrame,
                     rf,frac=0.2):
   feature_names = x_val.columns
-  result = permutation_importance(rf,x_val,y_val,
-                                  n_repeats=10,n_jobs=2)
+  #result = permutation_importance(rf,x_val,y_val,
+  #                                n_repeats=10,n_jobs=2)
+  
+  importances = rf.feature_importances_
+  std = np.std([tree.feature_importances_ for tree in rf.estimators_], axis=0)
 
-  forest_importances = pd.Series(result.importances_mean,index=feature_names)
+  forest_importances = pd.Series(importances,index=feature_names).sort_values(ascending=False)
+  
+  fig, ax = plt.subplots()
+  forest_importances.plot.bar(yerr=std, ax=ax)
+  ax.set_title("Feature importances using MDI")
+  ax.set_ylabel("Mean decrease in impurity")
+  fig.tight_layout()
+  
   top_n = round(len(feature_names) * frac)
-  top_features = forest_importances.sort_values(ascending=False).index[:top_n]
+  top_features = forest_importances.index[:top_n]
   
   return top_features
