@@ -43,11 +43,11 @@ class EWMAC(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_EWMAC_{lookback}_{thr}"
+        self.signal.name = f"EWMAC_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_EWMAC_{lookback}_{thr}"
+        self.bisignal.name = f"EWMAC_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_EWMAC_{lookback}_{thr}"
+        self.pnl.name = f"EWMAC_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -91,11 +91,11 @@ class ChannelBreakout(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_ChannelBreakout_{lookback}_{thr}"
+        self.signal.name = f"ChannelBreakout_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_ChannelBreakout_{lookback}_{thr}"
+        self.bisignal.name = f"ChannelBreakout_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_ChannelBreakout_{lookback}_{thr}"
+        self.pnl.name = f"ChannelBreakout_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -139,11 +139,11 @@ class LongFilter(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_LongFilter_{lookback}_{thr}"
+        self.signal.name = f"LongFilter_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_LongFilter_{lookback}_{thr}"
+        self.bisignal.name = f"LongFilter_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_LongFilter_{lookback}_{thr}"
+        self.pnl.name = f"LongFilter_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -182,11 +182,11 @@ class ShortFilter(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_ShortFilter_{lookback}_{thr}"
+        self.signal.name = f"ShortFilter_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_ShortFilter_{lookback}_{thr}"
+        self.bisignal.name = f"ShortFilter_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_ShortFilter_{lookback}_{thr}"
+        self.pnl.name = f"ShortFilter_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -226,18 +226,18 @@ class NDayMomentum(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_NDayMomentum_{lookback}_{thr}"
+        self.signal.name = f"NDayMomentum_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_NDayMomentum_{lookback}_{thr}"
+        self.bisignal.name = f"NDayMomentum_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_NDayMomentum_{lookback}_{thr}"
+        self.pnl.name = f"NDayMomentum_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
         log_ret = log_close.diff()
         lookback = self.lookback
 
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean()) * lookback**0.5
+        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
 
         vol_change = (log_close.diff(lookback) / ew_vol).ffill()
         self.signal = vol_change
@@ -271,11 +271,11 @@ class BollingerBand(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_BollingerBand_{lookback}_{thr}"
+        self.signal.name = f"BollingerBand_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_BollingerBand_{lookback}_{thr}"
+        self.bisignal.name = f"BollingerBand_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_BollingerBand_{lookback}_{thr}"
+        self.pnl.name = f"BollingerBand_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -317,11 +317,11 @@ class SkewPremium(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_SkewPremium_{lookback}_{thr}"
+        self.signal.name = f"SkewPremium_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_SkewPremium_{lookback}_{thr}"
+        self.bisignal.name = f"SkewPremium_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_SkewPremium_{lookback}_{thr}"
+        self.pnl.name = f"SkewPremium_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -365,11 +365,11 @@ class KurtReversal(TradingRule):
         self.lookback = lookback
         self.thr = thr
         self.set_signal()
-        self.signal.name = f"S_KurtReversal_{lookback}_{thr}"
+        self.signal.name = f"KurtReversal_{lookback}_{thr}"
         self.set_bisignal()
-        self.bisignal.name = f"B_KurtReversal_{lookback}_{thr}"
+        self.bisignal.name = f"KurtReversal_{lookback}_{thr}"
         self.set_pnl()
-        self.pnl.name = f"P_KurtReversal_{lookback}_{thr}"
+        self.pnl.name = f"KurtReversal_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
