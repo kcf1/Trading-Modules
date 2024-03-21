@@ -1,8 +1,13 @@
 import pandas as pd
 import numpy as np
+from trading_rule import TradingRule
+from itertools import product
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
 
 
-class TradingRule:
+class TradingModel:
     def __init__(
         self,
         open: pd.Series = None,
@@ -16,16 +21,97 @@ class TradingRule:
         self.low = low
         self.close = close
         self.volume = volume
-        self.name = None
+        self.rules_signals_df = pd.DataFrame()
+        self.rules_bisignals_df = pd.DataFrame()
+        self.rules_pnls_df = pd.DataFrame()
+        self.label = None
+        self.model = None
         self.signal = None
-        self.bisignal = None
         self.pnl = None
 
     def set_pnl(self) -> None:
         logret = np.log(self.close).diff().shift(-1)
         pnl = self.bisignal * logret
         self.pnl = pnl
-        self.pnl.name = self.name
+
+    def set_rules_signals(self, rule_obj: TradingRule) -> None:
+        self.rules_signals_df[rule_obj.name] = rule_obj.signal
+        self.rules_bisignals_df[rule_obj.name] = rule_obj.bisignal
+        self.rules_pnls_df[rule_obj.name] = rule_obj.pnl
+        
+    def set_label(self) -> None:
+        tp,sl,hd = 5,5,24
+        logret = np.log(self.close).diff().shift(-1)
+        ew_vol = np.sqrt((logret**2).ewm(40, min_periods=40).mean())
+
+        label = []
+
+        for i, ret in logret.items():
+            up_bar = ew_vol.loc[i] * tp
+            low_bar = ew_vol.loc[i] * -sl
+            time_bar = hd
+
+            future_ret = logret.loc[i:]
+            cum_ret = ret
+            cum_day = 1
+            while True:
+                if cum_ret >= up_bar:
+                    label.append(+2)
+                    break
+                elif cum_ret <= low_bar:
+                    label.append(np.sign(cum_ret))
+                    break
+                elif cum_day >= time_bar or cum_day >= future_ret.shape[0]:
+                    label.append(-2)
+                    break
+
+                ret = future_ret.iloc[cum_day]
+                cum_day += 1
+                cum_ret += ret
+
+        label = pd.Series(label, index=logret.index, name="LABEL")
+        self.label = label
+        
+    def train_model(self) -> None:
+        dataset = pd.concat([self.label,
+                             self.rules_bisignals_df],axis=1).dropna()
+        train_y,train_x = dataset['LABEL'],dataset.drop(columns='LABEL')
+        model = RandomForestClassifier(n_estimators=1000,
+                                       max_depth=3,
+                                       random_state=300300)
+        model.fit(y=train_y,X=train_x)
+        self.model = model
+        
+    def model_pred(self)->None:
+        pred = self.model.predict(self.rules_bisignals_df.iloc[-1])
+        return pred
+        
+class MidTermKurtReversal(TradingModel):
+    def __init__(
+        self,
+        open: pd.Series = None,
+        high: pd.Series = None,
+        low: pd.Series = None,
+        close: pd.Series = None,
+        volume: pd.Series = None,
+    ) -> None:
+        super().__init__(open, high, low, close, volume)
+        self.set_signal()
+
+    def set_signal(self) -> None:
+        lookbacks = [48, 96, 192, 384]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            kurt_rule = KurtReversal(
+                lookback, thr, self.Open, self.High, self.Low, self.Close, self.Volume
+            )
+            self.set_rules_signals(kurt_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
+        
 
 
 class EWMAC(TradingRule):
@@ -44,10 +130,12 @@ class EWMAC(TradingRule):
         assert lookback is not None, "lookback cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"EWMAC_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"EWMAC_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"EWMAC_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"EWMAC_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -61,7 +149,6 @@ class EWMAC(TradingRule):
 
         ewmac = ((fast - slow) / ew_vol).ffill()
         self.signal = ewmac
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -72,7 +159,6 @@ class EWMAC(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
 
 
 class ChannelBreakout(TradingRule):
@@ -92,10 +178,12 @@ class ChannelBreakout(TradingRule):
         assert thr is not None, "thr cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"ChannelBreakout_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"ChannelBreakout_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"ChannelBreakout_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"ChannelBreakout_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -107,7 +195,6 @@ class ChannelBreakout(TradingRule):
         channel_pos = ((log_close - lower) / (upper - lower) - 0.5).ffill()
         channel_pos
         self.signal = channel_pos
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -118,7 +205,6 @@ class ChannelBreakout(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
 
 
 # Deprecated
@@ -227,10 +313,12 @@ class NDayMomentum(TradingRule):
         assert thr is not None, "thr cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"NDayMomentum_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"NDayMomentum_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"NDayMomentum_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"NDayMomentum_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -241,7 +329,6 @@ class NDayMomentum(TradingRule):
 
         vol_change = (log_close.diff(lookback) / ew_vol).ffill()
         self.signal = vol_change
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -252,7 +339,6 @@ class NDayMomentum(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
 
 
 class BollingerBand(TradingRule):
@@ -272,10 +358,12 @@ class BollingerBand(TradingRule):
         assert thr is not None, "thr cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"BollingerBand_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"BollingerBand_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"BollingerBand_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"BollingerBand_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -287,7 +375,6 @@ class BollingerBand(TradingRule):
 
         z_score = (dev / ew_vol).ffill()
         self.signal = z_score
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -298,7 +385,6 @@ class BollingerBand(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
 
 
 class SkewPremium(TradingRule):
@@ -318,10 +404,12 @@ class SkewPremium(TradingRule):
         assert thr is not None, "thr cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"SkewPremium_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"SkewPremium_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"SkewPremium_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"SkewPremium_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -335,7 +423,6 @@ class SkewPremium(TradingRule):
             .rank(pct=True)
         ).ffill()
         self.signal = skew
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -346,7 +433,6 @@ class SkewPremium(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
 
 
 class KurtReversal(TradingRule):
@@ -366,10 +452,12 @@ class KurtReversal(TradingRule):
         assert thr is not None, "thr cannot be None"
         self.lookback = lookback
         self.thr = thr
-        self.name = f"KurtReversal_{lookback}_{thr}"
         self.set_signal()
+        self.signal.name = f"KurtReversal_{lookback}_{thr}"
         self.set_bisignal()
+        self.bisignal.name = f"KurtReversal_{lookback}_{thr}"
         self.set_pnl()
+        self.pnl.name = f"KurtReversal_{lookback}_{thr}"
 
     def set_signal(self) -> None:
         log_close = np.log(self.close)
@@ -383,7 +471,6 @@ class KurtReversal(TradingRule):
             .rank(pct=True)
         ).ffill()
         self.signal = skew
-        self.signal.name = self.name
 
     def set_bisignal(self) -> None:
         signal = self.signal
@@ -394,4 +481,3 @@ class KurtReversal(TradingRule):
 
         bisignal = pd.Series(long_signal + short_signal, index=signal.index)
         self.bisignal = bisignal
-        self.bisignal.name = self.name
