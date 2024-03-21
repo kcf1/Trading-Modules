@@ -38,9 +38,9 @@ class TradingModel:
         self.rules_signals_df[rule_obj.name] = rule_obj.signal
         self.rules_bisignals_df[rule_obj.name] = rule_obj.bisignal
         self.rules_pnls_df[rule_obj.name] = rule_obj.pnl
-        
+
     def set_label(self) -> None:
-        tp,sl,hd = 5,5,24
+        tp, sl, hd = 5, 5, 24
         logret = np.log(self.close).diff().shift(-1)
         ew_vol = np.sqrt((logret**2).ewm(40, min_periods=40).mean())
 
@@ -71,21 +71,21 @@ class TradingModel:
 
         label = pd.Series(label, index=logret.index, name="LABEL")
         self.label = label
-        
+
     def train_model(self) -> None:
-        dataset = pd.concat([self.label,
-                             self.rules_bisignals_df],axis=1).dropna()
-        train_y,train_x = dataset['LABEL'],dataset.drop(columns='LABEL')
-        model = RandomForestClassifier(n_estimators=1000,
-                                       max_depth=3,
-                                       random_state=300300)
-        model.fit(y=train_y,X=train_x)
+        dataset = pd.concat([self.label, self.rules_bisignals_df], axis=1).dropna()
+        train_y, train_x = dataset["LABEL"], dataset.drop(columns="LABEL")
+        model = RandomForestClassifier(
+            n_estimators=1000, max_depth=3, random_state=300300
+        )
+        model.fit(y=train_y, X=train_x)
         self.model = model
-        
-    def model_pred(self)->None:
+
+    def model_pred(self) -> None:
         pred = self.model.predict(self.rules_bisignals_df.iloc[-1])
         return pred
-        
+
+
 class MidTermKurtReversal(TradingModel):
     def __init__(
         self,
@@ -111,7 +111,6 @@ class MidTermKurtReversal(TradingModel):
         self.train_model()
         signal = self.model_pred()
         self.signal = signal
-        
 
 
 class EWMAC(TradingRule):
