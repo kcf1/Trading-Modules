@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from trading_rule import TradingRule
+from trading_rule import *
 from itertools import product
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -75,15 +75,44 @@ class TradingModel:
     def train_model(self) -> None:
         dataset = pd.concat([self.label, self.rules_bisignals_df], axis=1).dropna()
         train_y, train_x = dataset["LABEL"], dataset.drop(columns="LABEL")
-        model = RandomForestClassifier(
-            n_estimators=1000, max_depth=3, random_state=300300
-        )
+        # model = RandomForestClassifier(
+        #    n_estimators=1000, max_depth=3, random_state=300300
+        # )
+        model = GaussianNB()
+        # model = LogisticRegression(penalty="l2", random_state=300300)
         model.fit(y=train_y, X=train_x)
         self.model = model
 
     def model_pred(self) -> None:
-        pred = self.model.predict(self.rules_bisignals_df.iloc[-1])
+        pred = self.model.predict(self.rules_bisignals_df.iloc[-1, :].to_frame().T)[0]
         return pred
+
+
+class ShortTermKurtReversal(TradingModel):
+    def __init__(
+        self,
+        open: pd.Series = None,
+        high: pd.Series = None,
+        low: pd.Series = None,
+        close: pd.Series = None,
+        volume: pd.Series = None,
+    ) -> None:
+        super().__init__(open, high, low, close, volume)
+        self.set_signal()
+
+    def set_signal(self) -> None:
+        lookbacks = [12, 24]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            kurt_rule = KurtReversal(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(kurt_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
 class MidTermKurtReversal(TradingModel):
@@ -104,7 +133,7 @@ class MidTermKurtReversal(TradingModel):
         params = product(lookbacks, thrs)
         for lookback, thr in params:
             kurt_rule = KurtReversal(
-                lookback, thr, self.Open, self.High, self.Low, self.Close, self.Volume
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
             )
             self.set_rules_signals(kurt_rule)
         self.set_label()
@@ -113,11 +142,9 @@ class MidTermKurtReversal(TradingModel):
         self.signal = signal
 
 
-class EWMAC(TradingRule):
+class ShortTermBollingerBand(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -125,46 +152,26 @@ class EWMAC(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"EWMAC_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"EWMAC_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"EWMAC_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        log_ret = log_close.diff()
-        lookback = self.lookback
-
-        fast = log_close.ewm(lookback, min_periods=lookback).mean()
-        slow = log_close.ewm(lookback * 4, min_periods=lookback * 4).mean()
-        # approximate 0.05 alpha
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
-
-        ewmac = ((fast - slow) / ew_vol).ffill()
-        self.signal = ewmac
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        long_signal = np.where(signal <= -thr, 1, 0)
-        short_signal = np.where(signal >= thr, -1, 0)
-
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [12, 24]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = BollingerBand(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class ChannelBreakout(TradingRule):
+class MidTermBollingerBand(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -172,47 +179,26 @@ class ChannelBreakout(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"ChannelBreakout_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"ChannelBreakout_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"ChannelBreakout_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        lookback = self.lookback
-
-        upper = log_close.rolling(lookback).max()
-        lower = log_close.rolling(lookback).min()
-
-        channel_pos = ((log_close - lower) / (upper - lower) - 0.5).ffill()
-        channel_pos
-        self.signal = channel_pos
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        long_signal = np.where(signal >= 1 - thr, 1, 0)
-        short_signal = np.where(signal <= thr, -1, 0)
-
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [48, 96, 192]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = BollingerBand(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-# Deprecated
-"""
-class LongFilter(TradingRule):
+class ShortTermChannelBreakout(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -220,42 +206,26 @@ class LongFilter(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"LongFilter_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"LongFilter_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"LongFilter_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        log_ret = log_close.diff()
-        lookback = self.lookback
-
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
-        up = log_close - log_close.rolling(lookback).min()
-
-        vol_up = (up / ew_vol).ffill()
-        self.signal = vol_up
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        bisignal = pd.Series(np.where(signal >= thr, 1, 0), index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [12, 24, 48]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = ChannelBreakout(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class ShortFilter(TradingRule):
+class MidTermChannelBreakout(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -263,43 +233,26 @@ class ShortFilter(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"ShortFilter_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"ShortFilter_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"ShortFilter_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        log_ret = log_close.diff()
-        lookback = self.lookback
-
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
-        down = log_close.rolling(lookback).max() - log_close
-
-        vol_down = (down / ew_vol).ffill()
-        self.signal = vol_down
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        bisignal = pd.Series(np.where(signal >= thr, -1, 0), index=signal.index)
-        self.bisignal = bisignal
-"""
+        lookbacks = [96, 192, 384]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = ChannelBreakout(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class NDayMomentum(TradingRule):
+class ShortTermSkewPremium(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -307,44 +260,26 @@ class NDayMomentum(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"NDayMomentum_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"NDayMomentum_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"NDayMomentum_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        log_ret = log_close.diff()
-        lookback = self.lookback
-
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
-
-        vol_change = (log_close.diff(lookback) / ew_vol).ffill()
-        self.signal = vol_change
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        long_signal = np.where(signal >= thr, 1, 0)
-        short_signal = np.where(signal <= -thr, -1, 0)
-
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [12, 24, 48, 96]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = SkewPremium(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class BollingerBand(TradingRule):
+class LongTermSkewPremium(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -352,45 +287,26 @@ class BollingerBand(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"BollingerBand_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"BollingerBand_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"BollingerBand_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        log_ret = log_close.diff()
-        lookback = self.lookback
-
-        ew_vol = np.sqrt((log_ret**2).ewm(40, min_periods=40).mean())
-        dev = log_close - log_close.ewm(lookback).mean()
-
-        z_score = (dev / ew_vol).ffill()
-        self.signal = z_score
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        long_signal = np.where(signal <= -thr, 1, 0)
-        short_signal = np.where(signal >= thr, -1, 0)
-
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [192, 384]
+        thrs = [0.85, 0.95, 0.99]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = SkewPremium(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class SkewPremium(TradingRule):
+class ShortTermNDayMomentum(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -398,47 +314,26 @@ class SkewPremium(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"SkewPremium_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"SkewPremium_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"SkewPremium_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        lookback = self.lookback
-
-        skew = (
-            log_close.diff()
-            .rolling(lookback)
-            .skew()
-            .rolling(lookback * 4)
-            .rank(pct=True)
-        ).ffill()
-        self.signal = skew
-
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
-
-        long_signal = np.where(signal <= thr, 1, 0)
-        short_signal = np.where(signal >= 1 - thr, -1, 0)
-
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+        lookbacks = [12, 24, 48]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = NDayMomentum(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
 
-class KurtReversal(TradingRule):
+class LongTermNDayMomentum(TradingModel):
     def __init__(
         self,
-        lookback: int,
-        thr: float,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -446,37 +341,72 @@ class KurtReversal(TradingRule):
         volume: pd.Series = None,
     ) -> None:
         super().__init__(open, high, low, close, volume)
-        assert close is not None, "close cannot be None"
-        assert lookback is not None, "lookback cannot be None"
-        assert thr is not None, "thr cannot be None"
-        self.lookback = lookback
-        self.thr = thr
         self.set_signal()
-        self.signal.name = f"KurtReversal_{lookback}_{thr}"
-        self.set_bisignal()
-        self.bisignal.name = f"KurtReversal_{lookback}_{thr}"
-        self.set_pnl()
-        self.pnl.name = f"KurtReversal_{lookback}_{thr}"
 
     def set_signal(self) -> None:
-        log_close = np.log(self.close)
-        lookback = self.lookback
+        lookbacks = [96, 192, 384]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = NDayMomentum(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
-        skew = (
-            log_close.diff()
-            .rolling(lookback)
-            .kurt()
-            .rolling(lookback * 4)
-            .rank(pct=True)
-        ).ffill()
-        self.signal = skew
 
-    def set_bisignal(self) -> None:
-        signal = self.signal
-        thr = self.thr
+class ShortTermEWMAC(TradingModel):
+    def __init__(
+        self,
+        open: pd.Series = None,
+        high: pd.Series = None,
+        low: pd.Series = None,
+        close: pd.Series = None,
+        volume: pd.Series = None,
+    ) -> None:
+        super().__init__(open, high, low, close, volume)
+        self.set_signal()
 
-        long_signal = np.where(signal <= thr, 1, 0)
-        short_signal = np.where(signal >= 1 - thr, -1, 0)
+    def set_signal(self) -> None:
+        lookbacks = [24, 48, 96]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = EWMAC(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
 
-        bisignal = pd.Series(long_signal + short_signal, index=signal.index)
-        self.bisignal = bisignal
+
+class LongTermEWMAC(TradingModel):
+    def __init__(
+        self,
+        open: pd.Series = None,
+        high: pd.Series = None,
+        low: pd.Series = None,
+        close: pd.Series = None,
+        volume: pd.Series = None,
+    ) -> None:
+        super().__init__(open, high, low, close, volume)
+        self.set_signal()
+
+    def set_signal(self) -> None:
+        lookbacks = [192, 384]
+        thrs = [1, 2, 3]
+        params = product(lookbacks, thrs)
+        for lookback, thr in params:
+            bollband_rule = EWMAC(
+                lookback, thr, self.open, self.high, self.low, self.close, self.volume
+            )
+            self.set_rules_signals(bollband_rule)
+        self.set_label()
+        self.train_model()
+        signal = self.model_pred()
+        self.signal = signal
