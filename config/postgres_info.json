@@ -1,0 +1,9 @@
+{
+    "bars": {
+        "host": "localhost",
+        "database": "bars",
+        "port": 5432,
+        "user": "postgres",
+        "password": "benyi815r4"
+    }
+}
