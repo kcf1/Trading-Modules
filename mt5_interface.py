@@ -35,18 +35,32 @@ class User:
         self,
         symbol: str,
         timeframe: str = "1h",
-        start: str = None,
-        end: str = None,
+        start: str | dt.datetime = None,
+        end: str | dt.datetime = None,
         period_days: int = 365,
     ) -> None:
         if end is None:
-            end_time = dt.datetime.now(dt.timezone.utc)
-        else:
-            end_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S")
+            end_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
+        elif type(end) is str:
+            end_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S").replace(
+                tzinfo=dt.timezone.utc
+            )
+        elif type(end) is dt.datetime:
+            end_time = end.replace(tzinfo=dt.timezone.utc)
+
         if start is None:
             start_time = end_time - dt.timedelta(days=period_days)
-        else:
-            start_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S")
+        elif type(start) is str:
+            start_time = dt.datetime.strptime(start, format="%Y-%m-%d %H:%M:S").replace(
+                tzinfo=dt.timezone.utc
+            )
+        elif type(start) is dt.datetime:
+            start_time = start.replace(tzinfo=dt.timezone.utc)
+
+        assert (
+            start_time is not None and end_time is not None
+        ), "start_time and end_time is None"
+
         # parse timeframe
         timeframe_obj_dict = {
             "1m": mt5.TIMEFRAME_M1,
@@ -87,6 +101,6 @@ class User:
         #    .astype(str)
         # )
         # print(bars_df)
-        #bars_df["time_value"] = bars_df["time"]
+        # bars_df["time_value"] = bars_df["time"]
         bars_df["time"] = pd.to_datetime(bars_df["time"], unit="s")
         return bars_df.sort_values("time", ascending=True)

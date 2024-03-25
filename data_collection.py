@@ -1,6 +1,7 @@
 from __future__ import annotations
 import pandas as pd
 import numpy as np
+import datetime as dt
 from mt5_interface import User
 from postgres_interface import DataBase
 from sqlalchemy import create_engine
@@ -69,8 +70,7 @@ class PretradeDataUpdater:
             df = self.user.get_bars(r.symbol, "1h", period_days=4000)
             df["symbol"] = r.symbol
             df["id"] = str(symbol_id) + "-" + df["time"].dt.strftime("%Y%m%d%H%M%S")
-            df = df.loc[
-                :,
+            df = df[
                 [
                     "id",
                     "symbol",
@@ -82,7 +82,7 @@ class PretradeDataUpdater:
                     "spread",
                     "tick_volume",
                     "real_volume",
-                ],
+                ]
             ]
 
             if not table_created:
@@ -102,13 +102,38 @@ class PretradeDataUpdater:
         for i, r in universe.iterrows():
             columns = self.db.read_columns(table_name)
             cmd = f"SELECT * FROM {table_name} WHERE symbol = '{r.symbol}' ORDER BY time DESC LIMIT 1;"
-            lastest_bar = pd.Series(self.db.execute(cmd)[0], index=columns)
-            print(lastest_bar)
-            print(type(lastest_bar["time"]))
-            # df = self.user.get_bars(
-            #    r.symbol,
-            # )
-        pass
+            latest_bar = pd.Series(self.db.execute(cmd)[0], index=columns)
+            df = self.user.get_bars(
+                r.symbol,
+                "1h",
+                start=latest_bar.time,
+            )
+            print(latest_bar.time)
+            symbol_id = r.id
+            df["symbol"] = r.symbol
+            df["id"] = str(symbol_id) + "-" + df["time"].dt.strftime("%Y%m%d%H%M%S")
+            df = df[
+                [
+                    "id",
+                    "symbol",
+                    "time",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "spread",
+                    "tick_volume",
+                    "real_volume",
+                ]
+            ]
+
+            assert df.iloc[0].id == latest_bar.id, print(
+                "Local data not reconciling with MT5 source"
+            )
+
+            assert len(df.iloc[1:]) > 0, "No new bars has been updated"
+
+            self.db.insert_rows_from_df("bars", df.iloc[1:])
 
     def update_technicals(self) -> None:
         pass

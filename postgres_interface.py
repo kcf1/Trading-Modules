@@ -98,11 +98,13 @@ SELECT {value_value};
         cmd = f"""
 SELECT column_name
 FROM information_schema.columns
-WHERE table_name = '{table_name}';
+WHERE table_name = '{table_name}'
+ORDER BY ordinal_position;
         """
         self.cur.execute(cmd)
         # time.sleep(1)
-        columns = pd.Series(self.cur.fetchall()).map(lambda t: t[0]).to_list()
+        # columns = pd.Series(self.cur.fetchall()).map(lambda t: t[0])
+        columns = [result[0] for result in self.cur.fetchall()]
         return columns
 
     def read_all(self, table_name: str) -> pd.DataFrame:
