@@ -1,3 +1,4 @@
+from __future__ import annotations
 import MetaTrader5 as mt5
 import json
 import datetime as dt
@@ -6,12 +7,12 @@ import re
 
 
 class User:
-    def __init__(self) -> None:
+    def __init__(self):
         self.account = None
         self.password = None
         self.server = None
 
-    def login_by_dict(self, d: dict) -> None:
+    def login_by_dict(self, d: dict) -> User | None:
         self.account = d["account"]
         self.password = d["password"]
         self.server = d["server"]
@@ -21,9 +22,11 @@ class User:
         )
         if is_init:
             print(f"Logged in as {self.account}")
+            return self
         else:
             self.shutdown()
             print(f"Failed to login to {self.account}")
+            return None
 
     def shutdown(self) -> None:
         mt5.shutdown()
@@ -39,11 +42,11 @@ class User:
         if end is None:
             end_time = dt.datetime.now(dt.timezone.utc)
         else:
-            end_time = dt.datetime.strptime(end, format="%Y-%m-%d")
+            end_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S")
         if start is None:
             start_time = end_time - dt.timedelta(days=period_days)
         else:
-            start_time = dt.datetime.strptime(end, format="%Y-%m-%d")
+            start_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S")
         # parse timeframe
         timeframe_obj_dict = {
             "1m": mt5.TIMEFRAME_M1,
@@ -71,17 +74,19 @@ class User:
         bars = mt5.copy_rates_range(symbol, timeframe_obj, start_time, end_time)
         bars_df = pd.DataFrame(bars)
         # print(bars_df)
-        clean_symbol = re.sub(r"[^a-zA-Z]", "", symbol)
-        now_timestamp = int(end_time.timestamp())
+        # clean_symbol = re.sub(r"[^a-zA-Z]", "", symbol)
+        # now_timestamp = int(end_time.timestamp())
 
-        def create_id(time, clean_symbol, now_timestamp):
-            id = f"{clean_symbol}-{time}-{now_timestamp}"
-            return id
+        # def create_id(time, clean_symbol, now_timestamp):
+        #    id = f"{clean_symbol}-{time}-{now_timestamp}"
+        #    return id
 
-        bars_df["id"] = (
-            bars_df["time"]
-            .map(lambda time: create_id(time, clean_symbol, now_timestamp))
-            .astype(str)
-        )
+        # bars_df["id"] = (
+        #    bars_df["time"]
+        #    .map(lambda time: create_id(time, clean_symbol, now_timestamp))
+        #    .astype(str)
+        # )
+        # print(bars_df)
+        #bars_df["time_value"] = bars_df["time"]
         bars_df["time"] = pd.to_datetime(bars_df["time"], unit="s")
         return bars_df.sort_values("time", ascending=True)

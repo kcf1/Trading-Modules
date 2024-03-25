@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pandas as pd
 import numpy as np
 import psycopg2 as pg
@@ -15,7 +16,7 @@ class DataBase:
         self.cur = None
         pass
 
-    def connect_by_dict(self, d: dict) -> None:
+    def connect_by_dict(self, d: dict) -> DataBase | None:
         self.host = d["host"]
         self.database = d["database"]
         self.port = d["port"]
@@ -32,9 +33,11 @@ class DataBase:
             )
             self.cur = self.conn.cursor()
             print(f"Connected to {self.database}")
+            return self
         except Exception as e:
             print(f"Failed to connect to {self.database}")
             print(e)
+            return None
 
     def create_table_from_df(self, table_name: str, df: pd.DataFrame) -> None:
         col_type = df.dtypes.astype(str)
@@ -46,7 +49,7 @@ class DataBase:
         col_cmds = ""
         for col, spec in col_spec.items():
             if col == "id":
-                col_cmds += f"  {col} {spec} PRIMARY KEY,\n"
+                col_cmds += f"  {col} {spec} PRIMARY KEY UNIQUE,\n"
             else:
                 col_cmds += f"  {col} {spec},\n"
         cmd = f"""
@@ -54,14 +57,15 @@ CREATE TABLE {table_name} (
 {col_cmds[:-2]}
 );
         """
-        self.cur.execute(cmd.lower())
+        self.cur.execute(cmd)
 
     def map_type(self, dtype: str) -> str:
         mapper = {
             "datetime64[ns]": "timestamp",
             "float64": "double precision",
             "uint64": "bigint",
-            "int32": "integer",
+            "int64": "bigint",
+            "int32": "bigint",
             "object": "text",
         }
         return mapper[dtype]
@@ -88,7 +92,7 @@ INSERT INTO {table_name} ({column_value})
 SELECT {value_value};
       """
         # print(cmd)
-        self.cur.execute(cmd.lower())
+        self.cur.execute(cmd)
 
     def read_columns(self, table_name: str) -> list:
         cmd = f"""
@@ -96,7 +100,7 @@ SELECT column_name
 FROM information_schema.columns
 WHERE table_name = '{table_name}';
         """
-        self.cur.execute(cmd.lower())
+        self.cur.execute(cmd)
         # time.sleep(1)
         columns = pd.Series(self.cur.fetchall()).map(lambda t: t[0]).to_list()
         return columns
@@ -106,7 +110,7 @@ WHERE table_name = '{table_name}';
         cmd = f"""
 SELECT * FROM {table_name};
         """
-        self.cur.execute(cmd.lower())
+        self.cur.execute(cmd)
         # time.sleep(1)
         df = pd.DataFrame(self.cur.fetchall(), columns=columns)
         return df
@@ -117,12 +121,21 @@ SELECT * FROM {table_name};
         cmd = f"""
 SELECT * FROM {table_name} ORDER BY id DESC LIMIT {n_rows};
         """
-        self.cur.execute(cmd.lower())
+        self.cur.execute(cmd)
         df = pd.DataFrame(self.cur.fetchall(), columns=columns)
         return df
 
-    def execute(self, sql: str) -> None:
+    def drop(self, table_name: str) -> None:
+        cmd = f"""
+DROP TABLE IF EXISTS {table_name};
+        """
+        self.cur.execute(cmd)
+        self.conn.commit()
+
+    def execute(self, sql: str) -> list:
         self.cur.execute(sql)
+        self.conn.commit()
+        return self.cur.fetchall()
 
     def commit(self) -> None:
         self.conn.commit()
