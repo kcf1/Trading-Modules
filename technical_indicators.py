@@ -6,7 +6,6 @@ from indicators import Indicator
 class TechnicalIndicator(Indicator):
     def __init__(
         self,
-        name: str = None,
         open: pd.Series = None,
         high: pd.Series = None,
         low: pd.Series = None,
@@ -20,30 +19,60 @@ class TechnicalIndicator(Indicator):
         self.close = close
         self.volume = volume
         
-    def get_CCVOL(self,lookback:int)->pd.Series:
+    def get_CCHV(self,lookback:int)->np.float64:
         '''
         Close-to-close volatility
         '''
         log_ret = np.log(self.close).diff()
-        ccvol = log_ret.rolling(lookback).std()
-        return ccvol
+        cchv = np.sqrt((log_ret**2).mean())
+        return cchv
     
-    def get_EWVOL(self,lookback:int)->pd.Series:
+    def get_EWHV(self,lookback:int)->pd.Series:
         '''
-        Exponentially-weighted volatility
+        Exponentially-weighted historical volatility
         '''
         log_ret = np.log(self.close).diff()
-        ewvol = np.sqrt((log_ret**2).ewm(lookback, min_periods=lookback).mean())
-        return ewvol
-    def get_PVOL(self,lookback:int)->pd.Series:
+        ewhv = np.sqrt((log_ret**2).ewm(lookback, min_periods=lookback).mean())
+        return ewhv
+    
+    def get_PHV(self,lookback:int)->pd.Series:
         '''
-        Parkinson volatility
+        Parkinson historical volatility
         '''
-        f = 1/(4*lookback*np.log(2))
-        log_ret = np.log(self.high/self.low)
-        pvol = np.sqrt(f*(log_ret**2).sum())
-        return pvol
-        
+        k = 1/(4*np.log(2))
+        log_hl = np.log(self.high/self.low)
+        mean_squared_hl = (log_hl**2).rolling(lookback).mean()
+        phv = np.sqrt(k*mean_squared_hl)
+        return phv
+    
+    
+    def get_GKHV(self,lookback:int)->pd.Series:
+        '''
+        Garman-Klass historical volatility
+        '''
+        log_hl = np.log(self.high/self.low)
+        log_co = np.log(self.close/self.open)
+        mean_squared_hl = (log_hl ** 2).rolling(lookback).mean()
+        mean_squared_co = (log_co ** 2).rolling(lookback).mean()
+        gkhv = np.sqrt(1/2 * mean_squared_hl - (2*np.log(2)-1) * mean_squared_co)
+        return gkhv
+    
+    def get_RSHV(self,lookback:int)->pd.Series:
+        '''
+        Rogers-Satchell historical volatility
+        '''
+        log_hc = np.log(self.high/self.close)
+        log_ho = np.log(self.high/self.open)
+        log_lc = np.log(self.low/self.close)
+        log_lo = np.log(self.low/self.open)
+        rshv = np.sqrt((log_hc*log_ho + log_lc*log_lo).rolling(lookback).mean())
+        return rshv
+    
+    def get_YZHV(self,lookback:int)->pd.Series:
+        '''
+        Yang-Zhang historical volatility
+        '''
+    
     def get_EWMAC(self):
         
 
