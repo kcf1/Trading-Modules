@@ -42,7 +42,7 @@ class User:
         if end is None:
             end_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
         elif type(end) is str:
-            end_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:S").replace(
+            end_time = dt.datetime.strptime(end, format="%Y-%m-%d %H:%M:%S").replace(
                 tzinfo=dt.timezone.utc
             )
         elif type(end) is dt.datetime:
@@ -51,7 +51,7 @@ class User:
         if start is None:
             start_time = end_time - dt.timedelta(days=period_days)
         elif type(start) is str:
-            start_time = dt.datetime.strptime(start, format="%Y-%m-%d %H:%M:S").replace(
+            start_time = dt.datetime.strptime(start, format="%Y-%m-%d %H:%M:%S").replace(
                 tzinfo=dt.timezone.utc
             )
         elif type(start) is dt.datetime:
