@@ -60,7 +60,7 @@ class BollingerBand(TradingModel):
 
     def produce_sizes(self) -> None:
         super().produce_sizes()
-        sizes = pd.Series(1, index=self.sides.index)
+        sizes = pd.Series(1.0, index=self.sides.index)
 
         self.sizes = sizes
 

@@ -1,0 +1,16 @@
+{
+    "pre-trade": {
+        "host": "localhost",
+        "database": "pre-trade",
+        "port": 5432,
+        "user": "postgres",
+        "password": "benyi815r4"
+    },
+    "post-trade": {
+        "host": "localhost",
+        "database": "post-trade",
+        "port": 5432,
+        "user": "postgres",
+        "password": "benyi815r4"
+    }
+}

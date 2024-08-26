@@ -48,9 +48,9 @@ class PortfolioManager:
         assert self.capital is not None, "update_capital() first"
         assert self.assets is not None, "init_assets() first"
 
-        inv_vol = pd.Series(0, index=self.assets.keys())
+        inv_vol = pd.Series(0.0, index=self.assets.keys())
         for symbol in inv_vol.index:
-            inv_vol[symbol] = 1 / self.assets[symbol].vol
+            inv_vol[symbol] = 1.0 / self.assets[symbol].vol
 
         forex_symbols = self.asset_allocation["forex"]["symbols"]
         forex_inv_vol = inv_vol.loc[forex_symbols]

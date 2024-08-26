@@ -56,10 +56,10 @@ class FilteredBollingerBand(TradingModel):
         rules = self.rules
 
         long_entry = np.where(
-            (rules.close <= rules.lower) & (rules.ema >= rules.ema_filter), 1, 0
+            (rules.close <= rules.lower) & (rules.close >= rules.ema_filter), 1, 0
         )
         short_entry = np.where(
-            (rules.close >= rules.upper) & (rules.ema <= rules.ema_filter), -1, 0
+            (rules.close >= rules.upper) & (rules.close <= rules.ema_filter), -1, 0
         )
         sides = pd.Series(long_entry + short_entry, index=rules.index)
 
@@ -67,7 +67,7 @@ class FilteredBollingerBand(TradingModel):
 
     def produce_sizes(self) -> None:
         super().produce_sizes()
-        sizes = pd.Series(1, index=self.sides.index)
+        sizes = pd.Series(1.0, index=self.sides.index)
 
         self.sizes = sizes
 

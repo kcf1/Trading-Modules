@@ -57,7 +57,7 @@ class OrderManager:
         assert side == 1 or side == -1, "Side must be in {1,-1}"
 
         print(
-            f"    side: {side:+d}, n_lots: {n_lots:.3f}, tp: {round(tp,digits)}, sl: {round(sl,digits)}, ticket: -"
+            f"    side: {int(side):+d}, n_lots: {n_lots:.3f}, tp: {round(tp,digits)}, sl: {round(sl,digits)}, ticket: -"
         )
         print(f"    comment: {comment}")
 
@@ -98,7 +98,7 @@ class OrderManager:
         assert side == 1 or side == -1, "Side must be in {1,-1}"
 
         print(
-            f"    side: {side:+d}, n_lots: {n_lots:.3f}, tp: -, sl: -, ticket: {ticket}"
+            f"    side: {int(side)}, n_lots: {n_lots:.3f}, tp: -, sl: -, ticket: {ticket}"
         )
         print(f"    comment: {comment}")
 
@@ -124,21 +124,25 @@ class OrderManager:
     def close_exceed_time(self, symbol: str, holding_time: timedelta) -> pd.DataFrame:
         pos = self.book.get_symbol_pos(symbol)
         now = dt.now(tz.utc).replace(tzinfo=None)
-        pos["held_time"] = pos.time.map(lambda t: now - t)
+        pos['adjusted_time_utc'] = pos.time.map(lambda t: t.replace(minute=0,second=0)) - timedelta(hours=3)
+        pos["held_time"] = pos.adjusted_time_utc.map(lambda t: now - t.replace(minute=0))
 
         pos_exceed_time = pos.loc[pos.held_time >= holding_time]
 
-        result_l = list()
-        for i, r in pos_exceed_time.iterrows():
-            symbol = symbol
-            ticket = r.ticket
-            # parse type to opposite side
-            side = r.type * 2 - 1
-            n_lots = r.volume
-            comment = "999999 - Close all"
-            print(ticket, side, n_lots, comment)
-            result_l.append(self.close_market(symbol, ticket, side, n_lots, comment))
-        result = pd.concat(result_l, axis=1).T
+        if len(pos_exceed_time)>0:
+            result_l = list()
+            for i, r in pos_exceed_time.iterrows():
+                symbol = symbol
+                ticket = r.ticket
+                # parse type to opposite side
+                side = r.type * 2 - 1
+                n_lots = r.volume
+                comment = "999999 - Close all"
+                print(ticket, side, n_lots, comment)
+                result_l.append(self.close_market(symbol, ticket, side, n_lots, comment))
+            result = pd.concat(result_l, axis=1).T
+        else:
+            result = None
         return result
 
     def close_all_market(self, symbol: str) -> pd.DataFrame:

@@ -1,0 +1,21 @@
+{
+    "forex": {
+        "weight": 1,
+        "symbols": [
+            "AUDUSD",
+            "AUDNZD",
+            "AUDCAD",
+            "AUDCHF",
+            "NZDUSD",
+            "NZDCAD",
+            "EURUSD",
+            "EURAUD",
+            "EURCAD",
+            "EURCHF",
+            "GBPNZD",
+            "GBPAUD",
+            "GBPCAD",
+            "USDCAD"
+        ]
+    }
+}

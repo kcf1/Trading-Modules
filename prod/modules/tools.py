@@ -35,7 +35,109 @@ def read_json(filename):
     return j
 
 
+def get_ewsamples(series: pd.Series, alpha: float = None, period: int = None):
+    if period is not None:
+        alpha = 2 / (period + 1)
+    weights = pd.Series(
+        [(1 - alpha) ** i for i in range(len(series))], index=series.index[::-1]
+    )
+    weighted_series = series * weights
+    return weighted_series
+
+
 def backtest(
+    signal: pd.Series,
+    price: pd.Series,
+    tp: pd.Series,
+    sl: pd.Series,
+    period: int,
+    trail_sl: bool = False,
+):
+    idx = list()
+    trades = list()
+    cum_period = 0
+    last_direction = 0
+    cool_down = 0
+    for i in signal.index:
+        idx.append(i)
+        # if cum_period > 0:
+        #    cum_period -= 1
+        #    continue
+        if cool_down > 0:
+            cool_down -= 1
+            trades.append(np.nan)
+            continue
+        if signal.loc[i] != 0:
+            # idx.append(i)
+            pos = signal.loc[i]
+            # print(f'[{i}] open {pos}',end=', ')
+            direction = np.sign(pos)
+            size = abs(pos)
+
+            #if direction == last_direction:
+            #    trades.append(np.nan)
+            #    continue
+
+            # print(direction, size)
+            if trail_sl:
+                future_ret = direction * price.loc[i:].diff().shift(-1)
+                up_bar = tp.loc[i]
+                low_bar = -sl.loc[i]
+
+                cum_ret = future_ret.iloc[0]
+                cum_period = 1
+                while True:
+                    if cum_ret <= low_bar:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        cool_down = max(period, cum_period)
+                        print(f"sl ({cum_ret}), hold {cum_period} periods")
+                        break
+                    elif len(future_ret) <= cum_period:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        break
+                    cum_period += 1
+                    ret = future_ret.iloc[cum_period - 1]
+                    cum_ret += ret
+                    if ret > 0:
+                        low_bar += ret
+            else:
+                future_ret = direction * price.loc[i:].diff().shift(-1)
+                up_bar = tp.loc[i]
+                low_bar = -sl.loc[i]
+
+                cum_ret = future_ret.iloc[0]
+                cum_period = 1
+                while True:
+                    if cum_ret >= up_bar:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        # print(f'tp ({cum_ret}), hold {cum_period} periods')
+                        break
+                    elif cum_ret <= low_bar:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        # print(f'sl ({cum_ret}), hold {cum_period} periods')
+                        break
+                    elif cum_period >= period:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        # print(f'reached max period, hold {cum_period} periods')
+                        break
+                    elif len(future_ret) <= period:
+                        trades.append(cum_ret * size)
+                        # print(direction, size)
+                        break
+                    cum_period += 1
+                    cum_ret += future_ret.iloc[cum_period - 1]
+        else:
+            trades.append(np.nan)
+    trades = pd.Series(trades, index=idx)
+    return trades
+
+
+def label_tribar(
     signal: pd.Series, price: pd.Series, tp: pd.Series, sl: pd.Series, period: int
 ):
     idx = list()
@@ -50,27 +152,39 @@ def backtest(
             # idx.append(i)
             pos = signal.loc[i]
             # print(f'[{i}] open {pos}',end=', ')
-            future_ret = pos * price.loc[i:].diff().shift(-1)
+            direction = np.sign(pos)
+            size = abs(pos)
+
+            # print(direction, size)
+
+            future_ret = direction * price.loc[i:].diff().shift(-1)
             up_bar = tp.loc[i]
-            low_bar = sl.loc[i]
+            low_bar = -sl.loc[i]
 
             cum_ret = future_ret.iloc[0]
             cum_period = 1
             while True:
+                # print(up_bar, low_bar, period)
                 if cum_ret >= up_bar:
-                    trades.append(cum_ret)
-                    # print(f'tp ({cum_ret*100}%), hold {cum_period} periods')
+                    trades.append(1)
+                    # print(direction, size)
+                    # print(f"tp ({cum_ret*100}%), hold {cum_period} periods")
                     break
                 elif cum_ret <= low_bar:
-                    trades.append(cum_ret)
-                    # print(f'sl ({cum_ret*100}%), hold {cum_period} periods')
+                    trades.append(-1)
+                    # print(direction, size)
+                    # print(f"sl ({cum_ret*100}%), hold {cum_period} periods")
                     break
                 elif cum_period >= period:
-                    trades.append(cum_ret)
-                    # print(f'reached max period, hold {cum_period} periods')
+                    trades.append(np.sign(cum_ret))
+                    #trades.append(0)
+                    # print(direction, size)
+                    # print(f"reached max period, hold {cum_period} periods")
                     break
                 elif len(future_ret) <= period:
-                    trades.append(cum_ret)
+                    trades.append(np.sign(cum_ret))
+                    #trades.append(0)
+                    # print(direction, size)
                     break
                 cum_period += 1
                 cum_ret += future_ret.iloc[cum_period - 1]

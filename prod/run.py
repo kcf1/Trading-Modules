@@ -3,6 +3,8 @@ from modules.managers import PretradeDataManager, OrderManager, PortfolioManager
 
 from modules.tools import read_json
 
+from datetime import datetime as dt
+from datetime import timedelta
 from time import sleep
 
 ac_info = read_json("config/mt5_account.json")["ftmo-demo"]
@@ -22,17 +24,24 @@ pm = PortfolioManager(om, pdm, asset_allocation, params)
 pdm.set_universe()
 pm.init_assets()
 
+leverage = 1000
+capital = 100000
+
 while True:
     # Update everything
     pdm.update_bars()
+    pdm.update_bars()
     pm.update_assets_attr()
-    pm.update_capital(100000)
+    pm.update_capital(leverage * capital)
     pm.allocate_capital()
 
     # Send order
     pm.send_order()
 
     # Sleep 1 hr wait for the next bar
-    mins = 60
-    print(f"Operation finished, next in {mins} mins")
-    sleep(mins * 60)
+    next_run = (dt.now() + timedelta(hours=1)).replace(
+        minute=0, second=0, microsecond=0
+    )
+    print(f"Finished. Next operation at {next_run}...")
+    while dt.now() < next_run:
+        sleep(60)

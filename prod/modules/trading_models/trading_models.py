@@ -75,7 +75,7 @@ class TradingModel:
         Last weighted bet
         """
         assert self.weighted_bets is not None, "produce_bets() first"
-        last_time = self.weighted_bets.index[-1]
         last_bet = self.weighted_bets.iloc[-1]
+        # last_time = self.weighted_bets.index[-1]
         # print(last_time)
         return last_bet

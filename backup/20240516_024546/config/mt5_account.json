@@ -1,0 +1,14 @@
+{
+    "mt5-demo": {
+        "path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+        "account": 80273160,
+        "password": "Fn*x8jFj",
+        "server": "MetaQuotes-Demo"
+    },
+    "ftmo-demo": {
+        "path": "C:\\Program Files\\FTMO MetaTrader 5\\terminal64.exe",
+        "account": 1520198341,
+        "password": "GkgS1uutj4*",
+        "server": "FTMO-Demo2"
+    }
+}

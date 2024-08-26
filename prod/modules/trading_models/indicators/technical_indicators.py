@@ -57,10 +57,9 @@ class TechnicalIndicator(Indicator):
         """
         assert self.close is not None, "close is required"
 
-        log_ret = np.log(self.close).diff()
-        vol = np.sqrt((log_ret**2).ewm(vol_lookback).mean())
+        vol = self.get_ewvol(vol_lookback)
         avg_vol = vol.rolling(avg_vol_lookback).mean()
-        comb_vol = (0.3 * vol + 0.7 * avg_vol) * sqrt(vol_lookback)
+        comb_vol = 0.7 * vol + 0.3 * avg_vol
         return clean(comb_vol)
 
     def get_ema(self, lookback: int) -> pd.Series:
@@ -81,7 +80,7 @@ class TechnicalIndicator(Indicator):
         assert self.close is not None, "close is required"
 
         ema = self.get_ema(ema_lookback)
-        vol = self.get_combvol(vol_lookback, avg_vol_lookback)
+        vol = self.get_combvol(vol_lookback, avg_vol_lookback) * np.sqrt(ema_lookback)
         p_vol = ema * vol
         upper = ema + width * p_vol
         lower = ema - width * p_vol
